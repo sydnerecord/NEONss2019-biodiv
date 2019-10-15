@@ -1,3 +1,5 @@
+## THIS SCRIPT IS NOW OUT OF DATE IN TERMS OF THE WAY TO PULL NEON DATA; KEEPING HERE FOR REFERENCE/BITS OF CODE ##
+##
 ## TITLE:         NEON Organismal Data: read in via API, export data
 ## AUTHOR:        Phoebe Zarnetske, Quentin Read 
 ## COLLABORATORS: Sydne Record (Bryn Mawr), Ben Baiser (UFL), Angela Strecker (PSU), 
