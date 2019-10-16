@@ -1,7 +1,9 @@
 # Packages used
 library(tidyverse)
 library(googledrive)
-
+# install_github("EDIorg/ecocomDP", ref = 'development')
+library(ecocomDP)
+library(neonUtilities)
 
 #' Write file to Google Drive
 #' 
