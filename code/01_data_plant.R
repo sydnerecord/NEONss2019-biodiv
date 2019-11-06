@@ -54,7 +54,9 @@ div_plt = bind_rows(
          family, nativeStatusCode, sample_area_m2)
 ) %>% 
   mutate(subplot_id = str_sub(subplotID, 1, 2),
-         subsubplot_id = str_sub(subplotID, 4, 4)) %>% 
+         subsubplot_id = str_sub(subplotID, 4, 4),
+         yr = lubridate::year(lubridate::ymd(endDate))) %>% 
   unique() %>% 
   as_tibble()
 
+# clean species names??
