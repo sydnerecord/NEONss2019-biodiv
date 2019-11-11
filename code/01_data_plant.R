@@ -4,8 +4,11 @@ source("code/00_pkg_functions.R")
 # plantDiv dpid
 plant_code <- 'DP1.10058.001'
 
+# site_id = c("OSBS", "ABBY")
+
 all_tabs <- neonUtilities::loadByProduct(
   dpID = plant_code,
+  # site = site_id, 
   check.size = TRUE)
 str(all_tabs)
 
