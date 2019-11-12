@@ -24,7 +24,7 @@ my_site_list <- c('HARV', 'ABBY')
 all_tabs <- neonUtilities::loadByProduct(
   dpID = my_dpid,
   site = my_site_list,
-  check.size = TRUE)
+  check.size = F)
 
 # download field data for all dates for two neon sites -- much more manageable 
 bet_field <- all_tabs$bet_fielddata 
@@ -48,6 +48,39 @@ bet_fieldSort <- left_join(select(bet_field,-uid),
          remarks_field=remarks.x,
          remarks_sort=remarks.y)
 
+
+#Kari's code
+data <- bet_field %>%
+  filter(sampleCollected == "Y") %>% #there's an entry for every trap, whether or not they got samples, only want ones with samples
+  select(sampleID, domainID, siteID, plotID, trapID, collectDate) %>%
+  left_join(bet_sort %>% 
+              filter(sampleType %in% c("carabid", "other carabid")) %>% #only want carabid samples, not bycatch
+              select(sampleID, subsampleID, taxonID, scientificName, taxonRank, individualCount,identificationQualifier), 
+            by = "sampleID") %>%
+  filter(!is.na(subsampleID)) %>% #even though they were marked a sampled, some collection times don't acutally have any samples 
+  left_join(bet_pin %>% select(subsampleID, individualID, taxonID, scientificName, taxonRank,identificationQualifier), by = "subsampleID") %>%
+  mutate(year = lubridate::year(collectDate),
+         month = lubridate::month(collectDate),
+         day = lubridate::day(collectDate))
+
+# Replace sorting taxon info with pinning taxon info, where available, and remove pinning taxon fields
+data <- mutate(data, taxonID = ifelse(is.na(taxonID.y), taxonID.x, taxonID.y)) %>%
+  mutate(taxonRank = ifelse(is.na(taxonRank.y), taxonRank.x, taxonRank.y)) %>%
+  mutate(scientificName = ifelse(is.na(scientificName.y), scientificName.x, scientificName.y)) %>%
+  mutate (identificationQualifier = ifelse(is.na(taxonID.y), identificationQualifier.x, identificationQualifier.y)) %>%
+  select(-c(taxonID.x,taxonID.y,taxonRank.x,taxonRank.y,scientificName.x,scientificName.y,identificationQualifier.x, identificationQualifier.y))
+
+# Add expert taxonomy info, if available
+data <- left_join(data, select(bet_taxonomy_expert,individualID,taxonID,scientificName,taxonRank,identificationQualifier),by = 'individualID')
+
+# Replacement old taxon info with expert info, where available
+# NOTE - This is *just* a replacement of IDs for individual beetles. You probably want to do more than this, if the expert identified 
+#           a sample as COLSP6 instead of CARSP14, then all CARSP14 from that trap on that date should probably be updated to COLSP6
+data <- mutate(data, taxonID = ifelse(is.na(taxonID.y), taxonID.x, taxonID.y)) %>%
+  mutate(taxonRank = ifelse(is.na(taxonRank.y), taxonRank.x, taxonRank.y)) %>%
+  mutate(scientificName = ifelse(is.na(scientificName.y), scientificName.x, scientificName.y)) %>%
+  mutate (identificationQualifier = ifelse(is.na(taxonID.y), identificationQualifier.x, identificationQualifier.y)) %>%
+  select(-c(taxonID.x,taxonID.y,taxonRank.x,taxonRank.y,scientificName.x,scientificName.y,identificationQualifier.x, identificationQualifier.y))
 
 
 
