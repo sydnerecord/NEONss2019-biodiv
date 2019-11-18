@@ -48,9 +48,11 @@ alg_biomass <-alg_allTabs$alg_biomass
 head(alg_biomass,2)
 
 #add up labSampleVolume + preservativeVolume
-alg_biomass1<- alg_biomass %>%
-  mutate(estBSVolume=preservativeVolume+labSampleVolume)
-head(alg_biomass1,2)
+alg_biomass1t<- alg_biomass %>%
+  mutate(estBSVolume=preservativeVolume+labSampleVolume) %>%
+  filter(analysisType=='taxonomy')
+head(alg_biomass1t,2)
+dim(alg_biomass1t)
 
 ####make workable tables ###
 
@@ -78,22 +80,22 @@ View(table_taxon)
 #ADD biomass data as additional 'perBottleSampleVolume'
 ###change NA's to 0's in alg_field data
 head(alg_field_data,3)
-head(alg_tax_long,3)
+head(alg_tax_long,2)
 summary(alg_tax_long)
 alg_tax_long$perBottleSampleVolume[is.na(alg_tax_long$perBottleSampleVolume)] <- 0
 ##add biomass estBSVolume 
-labels(alg_tax_biomass)
+head(alg_biomass1,2)
+
 readr::write_csv(
-  alg_tax_biomass,
-  'table_algbio.csv')
+  alg_biomass1,
+  'algbiomass.csv')
 alg_tax_biomass <-alg_tax_long %>%
-  left_join(alg_biomass1, by="sampleID") %>%
+  left_join(alg_biomass1t, by=c("sampleID" = "parentSampleID")) %>%
   mutate(perBSVol=
            case_when(
-             perBottleSampleVolume ==0 ~ estBSVolume+perBottleSampleVolume,
-             perBottleSampleVolume >0 ~perBottleSampleVolume))
-head(alg_tax_biomass,2)
-labels(alg_biomass1)
+             perBottleSampleVolume ==0 ~ estBSVolume,
+             perBottleSampleVolume >0 ~ perBottleSampleVolume))
+
 ##create table_observation
 
 table_observation1 <- alg_tax_biomass %>% 
