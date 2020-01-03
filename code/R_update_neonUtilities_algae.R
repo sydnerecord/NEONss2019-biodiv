@@ -46,7 +46,7 @@ head(alg_field_data)
 ##add biomass table for table_observation as it has additional estimated 'perBottleSampleVolumes'
 alg_biomass <-alg_allTabs$alg_biomass
 head(alg_biomass,2)
-
+summary(alg_biomass1t$fieldSampleVolume)
 #add up labSampleVolume + preservativeVolume
 alg_biomass1t<- alg_biomass %>%
   mutate(estBSVolume=preservativeVolume+labSampleVolume) %>%
@@ -75,30 +75,50 @@ table_taxon <- alg_tax_long %>%
          taxon_rank = taxonRank,
          taxon_name = scientificName)
 View(table_taxon)
+readr::write_csv(
+  alg_tax_long,
+  'algtaxlong.csv')
 #### observation ###
 
 #ADD biomass data as additional 'perBottleSampleVolume'
-###change NA's to 0's in alg_field data
+###change NA's to 0's in alg_tax_long data
 head(alg_field_data,3)
 head(alg_tax_long,2)
+head(alg_biomass1t)
 summary(alg_tax_long)
 alg_tax_long$perBottleSampleVolume[is.na(alg_tax_long$perBottleSampleVolume)] <- 0
 ##add biomass estBSVolume 
-head(alg_biomass1,2)
-
+#alg_biomass1t %>%
+ # group_by(siteID) %>%
+  #summarise(n_distinct(sampleID))
+head(alg_biomass1t)
 readr::write_csv(
   alg_biomass1,
   'algbiomass.csv')
+
 alg_tax_biomass <-alg_tax_long %>%
   left_join(alg_biomass1t, by=c("sampleID" = "parentSampleID")) %>%
   mutate(perBSVol=
            case_when(
              perBottleSampleVolume ==0 ~ estBSVolume,
              perBottleSampleVolume >0 ~ perBottleSampleVolume))
-
+#switch order of join -> no NAs
+alg_tax_biomass2 <-alg_biomass1t %>%
+  left_join(alg_tax_long, by=c("parentSampleID" = "sampleID")) %>%
+  mutate(perBSVol=
+           case_when(
+             perBottleSampleVolume ==0 ~ estBSVolume,
+             perBottleSampleVolume >0 ~ perBottleSampleVolume))
+readr::write_csv(
+  alg_tax_biomass,
+  'algtaxbiomass.csv')
+summary(alg_tax_biomass$fieldSampleVolume) #error -join of tax and biomass creates NA's
+summary(alg_tax_biomass2$fieldSampleVolume) 
 ##create table_observation
-
-table_observation1 <- alg_tax_biomass %>% 
+head(alg_tax_biomass2,2)
+labels(alg_tax_long)
+labels(alg_biomass1t)
+table_observation1 <- alg_tax_biomass2 %>% 
 left_join(alg_field_data, by = c("sampleID" = "parentSampleID")) %>%
   select(uid.x,
          sampleID,
@@ -108,7 +128,7 @@ left_join(alg_field_data, by = c("sampleID" = "parentSampleID")) %>%
          algalParameterUnit,
          algalParameter,
          perBSVol,
-         fieldSampleVolume.x,
+         fieldSampleVolume.y,
          algalSampleType,
          benthicArea,
          acceptedTaxonID) %>%
@@ -116,14 +136,18 @@ left_join(alg_field_data, by = c("sampleID" = "parentSampleID")) %>%
       mutate(density=
              case_when(
            algalSampleType %in% c('seston') ~ algalParameterValue / perBSVol,
-           TRUE ~ (algalParameterValue / perBSVol) * (fieldSampleVolume.x / benthicArea) #add phytoplankton back in when applicable
+           TRUE ~ (algalParameterValue / perBSVol) * (fieldSampleVolume.y / benthicArea) #add phytoplankton back in when applicable
          ),cell_density_standardized_unit = case_when(
            algalSampleType == 'phytoplankton' ~ 'cells/mL',
            TRUE ~ 'cells/m2'))
 #check
 head(table_observation1,2)
 
+summary(table_observation1$density)
+summary(table_observation1$perBSVol)
 
+summary(table_observation1$fieldSampleVolume.y)
+summary(table_observation1$benthicArea)
 
 ###################################
 # write out in ecocomDP format
