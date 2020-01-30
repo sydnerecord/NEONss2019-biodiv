@@ -1,7 +1,7 @@
 # Packages used
 library(tidyverse)
 library(googledrive)
-# install_github("EDIorg/ecocomDP", ref = 'development')
+# devtools::install_github("EDIorg/ecocomDP")
 library(ecocomDP)
 library(neonUtilities)
 library(lubridate)

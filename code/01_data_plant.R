@@ -4,21 +4,22 @@ source("code/00_pkg_functions.R")
 # plantDiv dpid
 plant_code <- 'DP1.10058.001'
 
-# site_id = c("OSBS", "ABBY")
+site_id = c("OSBS", "ABBY")
 
 all_tabs <- neonUtilities::loadByProduct(
   dpID = plant_code,
-  # site = site_id, 
-  check.size = TRUE)
+  site = site_id,
+  check.size = F)
 str(all_tabs)
 
 # download field data for all dates for two neon sites -- much more manageable 
+table(all_tabs$div_1m2Data$divDataType)
 div_1m2_pla <- filter(all_tabs$div_1m2Data, divDataType == 'plantSpecies')  
+div_1m2_oVar <- filter(all_tabs$div_1m2Data, divDataType == 'otherVariables') 
+table(div_1m2_oVar$otherVariables)
 # Remove 1m2 data with targetTaxaPresent = N
 div_1m2_pla <- filter(div_1m2_pla, targetTaxaPresent != 'N')
 
-div_1m2_oVar <- filter(all_tabs$div_1m2Data, divDataType == 'otherVariables') 
-table(div_1m2_oVar$otherVariables)
 
 div_10_100_m2 <- all_tabs$div_10m2Data100m2Data
 
@@ -63,3 +64,9 @@ div_plt = bind_rows(
   as_tibble()
 
 # clean species names??
+names(div_plt)
+sort(unique(div_plt$scientificName))
+filter(div_plt, scientificName == "")
+table(div_plt$taxonRank)
+table(filter(div_plt, taxonRank == "kingdom")$scientificName)
+table(filter(div_plt, taxonRank == "variety")$scientificName)
