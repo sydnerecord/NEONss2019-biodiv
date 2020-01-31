@@ -120,5 +120,16 @@ beetles_counts <- beetles_data %>%
   summarise(count = sum(individualCount)) %>%
   ungroup()
 
+location <- beetles_raw$bet_fielddata %>%
+  unite(location_id, plotID, trapID) %>%
+  select(location_id, 
+         latitude = decimalLatitude, 
+         longitude = decimalLongitude,
+         elevation) %>% 
+  distinct()
+
+beetles_counts = mutate(beetles_counts, location_id = paste(plotID, trapID, sep = "_")) %>% 
+  left_join(location, by = "location_id")
+
 saveRDS(beetles_counts, "data/beetles_counts.rds")
 ```

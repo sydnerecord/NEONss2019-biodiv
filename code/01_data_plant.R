@@ -8,7 +8,7 @@ site_id = c("OSBS", "ABBY")
 
 all_tabs <- neonUtilities::loadByProduct(
   dpID = plant_code,
-  site = site_id,
+  # site = site_id,
   check.size = F)
 str(all_tabs)
 
@@ -62,6 +62,8 @@ div_plt = bind_rows(
          yr = lubridate::year(lubridate::ymd(endDate))) %>% 
   unique() %>% 
   as_tibble()
+
+saveRDS(div_plt, "data/plants_counts.rds")
 
 # clean species names??
 names(div_plt)

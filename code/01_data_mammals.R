@@ -1,8 +1,11 @@
-### This code downloads, unzips and restructures small mammal data from NEON for the use in spatial capture-recapture (SCR) models
-### SCR models call for a number of decisions (period of closure, startification, etc.) contingnet upon the specific research question.
-### In this scenario, we prep data for a stratified SCR (we stratify by NEON site); we assume closure within a month (bout) and that population is open across months.
-### Each year will be fitted separately 
-### Other scenarios are possible (e.g., population closed within a year, open across years, etc.)
+### This code downloads, unzips and restructures small mammal data from NEON for 
+### the use in spatial capture-recapture (SCR) models SCR models call for a number 
+### of decisions (period of closure, startification, etc.) contingnet upon the 
+### specific research question. In this scenario, we prep data for a stratified 
+### SCR (we stratify by NEON site); we assume closure within a month (bout) and 
+### that population is open across months. Each year will be fitted separately 
+### Other scenarios are possible (e.g., population closed within a year, open 
+### across years, etc.)
 
 ###########################################################################
 ###  Load functions
@@ -24,23 +27,22 @@ select <- dplyr::select
 ###########################################################################
 ## Download and unzip mammal data from NEON
 ###########################################################################
-zipsByProduct(dpID="DP1.10072.001", site = "all", startdate = NA, enddate = NA,
+zipsByProduct(dpID = "DP1.10072.001", site = "all", startdate = NA, enddate = NA,
               package = "basic", avg = "all", check.size = TRUE, savepath = NA,
               load = F)
-stackByTable("/filesToStack10072/", folder=T)
-
+stackByTable("filesToStack10072/", folder=T)
+# just loadByProduct()?
 
 ###########################################################################
 ## Read in data
 ###########################################################################
-dat.mam <- read.delim(file="/filesToStack10072/stackedFiles/mam_pertrapnight.csv", sep=",")
+dat.mam <- read_csv(file="filesToStack10072/stackedFiles/mam_pertrapnight.csv")
 head(dat.mam)
 
 ### 
-t1 <- t(as.data.frame(str_split(dat.mam$collectDate, "-")))
-dat.mam$year <- as.numeric(t1[,1])
-dat.mam$month <- as.numeric(t1[,2])
-dat.mam$day <- as.numeric(t1[,3])
+dat.mam = mutate(dat.mam, year = lubridate::year(collectDate),
+                 month = lubridate::month(collectDate),
+                 day = lubridate::day(collectDate))
 
 ###########################################################################
 ## Use collectDate to create columns that designate a bout (here, month) and repeated visit within a bout for Scenario 1
