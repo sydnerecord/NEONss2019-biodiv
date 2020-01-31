@@ -26,34 +26,42 @@ alg_biomass <-alg_allTabs$alg_biomass
 
 alg_biomass1t <- alg_biomass %>%
   mutate(estBSVolume = preservativeVolume + labSampleVolume) %>%
-  filter(analysisType == 'taxonomy') 
+  filter(analysisType == 'taxonomy') # filter to taxonomy type
 
 alg_tax_long$perBottleSampleVolume[is.na(alg_tax_long$perBottleSampleVolume)] <- 0
+# not sure whether the above line is a good idea
+
 alg_tax_biomass2 <- left_join(alg_tax_long, alg_biomass1t) %>%
   mutate(perBSVol=
            case_when(
-             perBottleSampleVolume ==0 ~ estBSVolume,
-             perBottleSampleVolume >0 ~ perBottleSampleVolume))
+             perBottleSampleVolume == 0 ~ estBSVolume,
+             perBottleSampleVolume > 0 ~ perBottleSampleVolume))
 
-##create table_observation
+## create table_observation
 table_observation1 <- left_join(alg_tax_biomass2, alg_field_data) %>%
-  select(uid,
-         sampleID,
-         siteID, 
-         collectDate,
-         algalParameterValue,
-         algalParameterUnit,
-         algalParameter,
-         perBSVol,
-         fieldSampleVolume,
-         algalSampleType,
-         benthicArea,
-         acceptedTaxonID, scientificName) %>%
-  filter(algalParameterUnit=='cellsPerBottle')%>%
-  mutate(density=
-           case_when(
-             algalSampleType %in% c('seston') ~ algalParameterValue / perBSVol,
-             TRUE ~ (algalParameterValue / perBSVol) * (fieldSampleVolume / benthicArea) #add phytoplankton back in when applicable
-           ),cell_density_standardized_unit = case_when(
-             algalSampleType == 'phytoplankton' ~ 'cells/mL',
-             TRUE ~ 'cells/m2'))
+  select(
+    uid,
+    sampleID,
+    siteID,
+    collectDate,
+    algalParameterValue,
+    algalParameterUnit,
+    algalParameter,
+    perBSVol,
+    fieldSampleVolume,
+    algalSampleType,
+    benthicArea,
+    acceptedTaxonID,
+    scientificName
+  ) %>%
+  filter(algalParameterUnit == 'cellsPerBottle') %>% # filter to cells per bottle
+  mutate(
+    density = case_when(
+        algalSampleType %in% c('seston') ~ algalParameterValue / perBSVol,
+        TRUE ~ (algalParameterValue / perBSVol) * (fieldSampleVolume / benthicArea) #add phytoplankton back in when applicable
+      ),
+    cell_density_standardized_unit = case_when(
+      algalSampleType == 'phytoplankton' ~ 'cells/mL',
+      TRUE ~ 'cells/m2'
+    )
+  )
