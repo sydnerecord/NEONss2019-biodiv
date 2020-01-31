@@ -17,12 +17,12 @@ library(piggyback)
 
 Download data
 ```{r}
-beetle_dir <- here::here("data", "beetles_raw.rda")
+beetle_dir <- here::here("data", "beetles_raw.rds")
 if (file.exists(beetle_dir)){
   load(beetle_dir)
 } else{
   beetles_raw <- loadByProduct("DP1.10022.001", check.size = FALSE)
-  usethis::use_data(beetles_raw)
+  saveRDS(beetles_raw, beetle_dir)
 }
 ```
 
@@ -39,7 +39,8 @@ data <- beetles_raw$bet_fielddata %>%
   select(sampleID, domainID, siteID, plotID, trapID, collectDate) %>%
   left_join(beetles_raw$bet_sorting %>%
               filter(sampleType %in% c("carabid", "other carabid")) %>% #only want carabid samples, not bycatch
-              select(sampleID, subsampleID, sampleType, taxonID, scientificName, taxonRank, individualCount,identificationQualifier),
+              select(sampleID, subsampleID, sampleType, taxonID, scientificName, 
+                     taxonRank, individualCount, identificationQualifier),
             by = "sampleID") %>%
   filter(!is.na(subsampleID)) %>% #even though they were marked a sampled, some collection times don't acutally have any samples
   mutate(year = lubridate::year(collectDate),
@@ -52,13 +53,16 @@ Join taxonomic data from pinning with the sorting data
 ```{r}
 # Replace sorting taxon info with pinning taxon info (people that pin specimens are more experienced with taxonomy), where available
 data_pin <- data %>%
-  left_join(beetles_raw$bet_parataxonomistID %>% select(subsampleID, individualID, taxonID, scientificName, taxonRank,identificationQualifier), by = "subsampleID") %>%
+  left_join(beetles_raw$bet_parataxonomistID %>% 
+              select(subsampleID, individualID, taxonID, scientificName, 
+                     taxonRank,identificationQualifier), 
+            by = "subsampleID") %>%
   mutate_if(is.factor, as.character) %>%
   mutate(taxonID = ifelse(is.na(taxonID.y), taxonID.x, taxonID.y)) %>%
   mutate(taxonRank = ifelse(is.na(taxonRank.y), taxonRank.x, taxonRank.y)) %>%
   mutate(scientificName = ifelse(is.na(scientificName.y), scientificName.x, scientificName.y)) %>%
   mutate(identificationSource = ifelse(is.na(scientificName.y), "sort", "pin")) %>%
-  mutate (identificationQualifier = ifelse(is.na(taxonID.y), identificationQualifier.x, identificationQualifier.y)) %>%
+  mutate(identificationQualifier = ifelse(is.na(taxonID.y), identificationQualifier.x, identificationQualifier.y)) %>%
   select(-ends_with(".x"), -ends_with(".y"))
 
 #some subsamples weren't fully ID'd by the pinners, so we have to recover the unpinned-individuals
@@ -69,7 +73,7 @@ lost_indv <- data_pin %>%
   filter(n_ided < individualCount) %>%
   mutate(unidentifiedCount = individualCount - n_ided) %>%
   select(subsampleID, individualCount = unidentifiedCount) %>%
-  left_join(data %>% select(-individualCount), by = "subsampleID") %>%
+  left_join(select(data, -individualCount), by = "subsampleID") %>%
   mutate(identificationSource = "sort")
 
 #add unpinned-individuals back to the pinned id's, adjust the individual counts so pinned individuals have a count of 1
@@ -81,9 +85,16 @@ data_pin <- data_pin %>%
 Join expert data to existing pinning and sorting data
 ```{r}
 # Add expert taxonomy info, where available
-data_expert <- left_join(data_pin, 
-                      select(beetles_raw$bet_expertTaxonomistIDProcessed,individualID,taxonID,scientificName,taxonRank,identificationQualifier), 
-                      by = 'individualID', na_matches = "never") %>% distinct()
+data_expert <- left_join(data_pin,
+  select(
+    beetles_raw$bet_expertTaxonomistIDProcessed,
+    individualID,
+    taxonID,
+    scientificName,
+    taxonRank,
+    identificationQualifier),
+  by = 'individualID', na_matches = "never"
+) %>% distinct()
  
 #For some reason there are ~10 individualID's for which experts ID'd more than one species, that's why 10 additional records are added by the join
 #beetles_raw$bet_expertTaxonomistIDProcessed %>% group_by(individualID) %>% filter(n_distinct(taxonID) > 1) %>% View()
@@ -98,8 +109,7 @@ data_expert <- data_expert %>%
   mutate (identificationQualifier = ifelse(is.na(taxonID.y), identificationQualifier.x, identificationQualifier.y)) %>%
   select(-ends_with(".x"), -ends_with(".y"))
 
-beetles_data <- data_expert
-usethis::use_data(beetles_data)
+beetles_data <- as_tibble(data_expert)
 ```
 
 Get raw counts table
@@ -110,5 +120,5 @@ beetles_counts <- beetles_data %>%
   summarise(count = sum(individualCount)) %>%
   ungroup()
 
-usethis::use_data(beetles_counts)
+saveRDS(beetles_counts, "data/beetles_counts.rds")
 ```
