@@ -6,7 +6,7 @@ library(neonUtilities)
 #### Download organism data ####
 ##****************************##
 
-# You can look in the data product catalog (http://data.neonscience.org/data-product-catalog) and manually figure out what the product codes are for small mammal trap data and for bird point count data, but I've provided them here. The `DP1` in the code indicates that this is Level 1 data. For Level 1 data, quality controls were run (Level 0 would be `DP0` meaning completely raw data) but the actual values are still raw values measured in the field, not some kind of calculated quantity (Level 2 and higher would be derived values).
+# You can look in the data product catalog (https://data.neonscience.org/apps/browse) and manually figure out what the product codes are for small mammal trap data and for bird point count data, but I've provided them here. The `DP1` in the code indicates that this is Level 1 data. For Level 1 data, quality controls were run (Level 0 would be `DP0` meaning completely raw data) but the actual values are still raw values measured in the field, not some kind of calculated quantity (Level 2 and higher would be derived values).
 
 # Breeding landbird point counts
 # http://data.neonscience.org/data-product-view?dpCode=DP1.10003.001
@@ -53,3 +53,13 @@ zoop_code <- 'DP1.20219.001'
 
 # Let's take a look at what files are available for NEON small mammal trapping data for a given site-month combination. Running this takes a minute or two and requires an internet connection because we are querying the API.
 
+
+my_site_list <- c('OSBS')
+
+d <- neonUtilities::loadByProduct(
+  dpID = plant_code,
+  site = my_site_list,
+  check.size = TRUE)
+str(d)
+head(d$variables)
+head(d$div_1m2Data)

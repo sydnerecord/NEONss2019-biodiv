@@ -62,4 +62,10 @@ div_plt = bind_rows(
   unique() %>% 
   as_tibble()
 
+saveRDS(div_plt, "data/div_plants.rds")
+
+table(div_plt$siteID)
+n_distinct(div_plt$siteID) # 47 sites
+n_distinct(div_plt$taxonID) # 5950 species
 # clean species names??
+table(div_plt$taxonRank)
