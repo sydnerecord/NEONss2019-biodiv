@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(tidyverse)
 library(neonUtilities)
-library(piggyback)
+library(lubridate)
 ```
 
 Download data
@@ -33,19 +33,52 @@ Grab necessary columns from different tables. Important column info:
 
 There are multiple levels of taxonomic identification, need to decide which level of rigor we care about (NEON id often just to family, taxonomist ID to species but only for a subset, DNA ID for even smaller subset).
 
+This first chunk also adds a new `trappingDays` column to account for effort. For each unique siteID/plotID/trapID/eventID combination (so each sample event for each trap) the number of days the trap was set before sampling is calculated.
 ```{r}
 data <- beetles_raw$bet_fielddata %>%
   filter(sampleCollected == "Y") %>% #there's an entry for every trap, whether or not they got samples, only want ones with samples
-  select(sampleID, domainID, siteID, plotID, trapID, collectDate) %>%
+  select(sampleID, domainID, siteID, plotID, trapID, setDate, collectDate, eventID, trappingDays) %>%
+  #eventID's are inconsistently separated by periods, so remove
+  mutate(eventID = str_remove_all(eventID, "[.]")) %>%
+  #for some eventID's (bouts) collection happened over two days, 
+  #change collectDate to just the first day so we have a single collectionDate
+  group_by(siteID, plotID, eventID) %>%
+  mutate(collectDate = case_when(
+    n_distinct(collectDate) > 1 ~ unique(collectDate)[1],
+    TRUE ~ collectDate
+  )) %>% 
+  ungroup()
+
+#Find the traps that have multiple collectDates/bouts for the same setDate
+#need to calculate their trap days from the previous collectDate, not the setDate
+adjTrappingDays <- data %>%
+  select(plotID, trapID, setDate, collectDate) %>%
+  group_by_at(vars(-collectDate)) %>%
+  filter(n_distinct(collectDate) > 1) %>%
+  mutate(trappingDays = interval(ymd(setDate), ymd(collectDate)) %/% days(1)) %>%
+  group_by(plotID, trapID, setDate) %>%
+  mutate(diffTrappingDays = trappingDays - min(trappingDays)) %>%
+  mutate(adjTrappingDays = case_when(
+    diffTrappingDays == 0 ~ trappingDays,
+    TRUE ~ diffTrappingDays
+  )) %>%
+  select(-c(trappingDays, diffTrappingDays))
+
+data <- data %>%
+  mutate(trappingDays = interval(ymd(setDate), ymd(collectDate)) %/% days(1)) %>%
+  #update with adjusted trapping days where needed
+  left_join(adjTrappingDays) %>%
+  mutate(trappingDays = case_when(
+    !is.na(adjTrappingDays) ~ adjTrappingDays,
+    TRUE ~ trappingDays
+  )) %>%
+  select(-adjTrappingDays) %>%
+  #and join to sample data
   left_join(beetles_raw$bet_sorting %>%
               filter(sampleType %in% c("carabid", "other carabid")) %>% #only want carabid samples, not bycatch
               select(sampleID, subsampleID, sampleType, taxonID, scientificName, taxonRank, individualCount,identificationQualifier),
             by = "sampleID") %>%
-  filter(!is.na(subsampleID)) %>% #even though they were marked a sampled, some collection times don't acutally have any samples
-  mutate(year = lubridate::year(collectDate),
-         month = lubridate::month(collectDate),
-         day = lubridate::day(collectDate))
- 
+  filter(!is.na(subsampleID)) #even though they were marked a sampled, some collection times don't acutally have any samples
 ```
 
 Join taxonomic data from pinning with the sorting data
@@ -89,6 +122,9 @@ data_expert <- left_join(data_pin,
 #beetles_raw$bet_expertTaxonomistIDProcessed %>% group_by(individualID) %>% filter(n_distinct(taxonID) > 1) %>% View()
 
 # Replacement old taxon info with expert info, where available
+# NOTE - This is repetitive with the code snippet above, and if you want to do it this way you can just combine the calls into one chunk. BUT, you may
+#     want to do more than this, as it is *just* a replacement of IDs for individual beetles that an expert identified. If the expert identified
+#           a sample as COLSP6 instead of CARSP14, though, then all CARSP14 from that trap on that date should probably be updated to COLSP6…
 data_expert <- data_expert %>%
   mutate_if(is.factor, as.character) %>%
   mutate(taxonID = ifelse(is.na(taxonID.y), taxonID.x, taxonID.y)) %>%
@@ -99,7 +135,6 @@ data_expert <- data_expert %>%
   select(-ends_with(".x"), -ends_with(".y"))
 
 beetles_data <- data_expert
-usethis::use_data(beetles_data)
 ```
 
 Get raw counts table
@@ -110,5 +145,5 @@ beetles_counts <- beetles_data %>%
   summarise(count = sum(individualCount)) %>%
   ungroup()
 
-usethis::use_data(beetles_counts)
+write_csv(beetles_counts, "data/beetles_counts.csv")
 ```
