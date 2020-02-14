@@ -36,7 +36,39 @@ stackByTable("/filesToStack10072/", folder=T)
 dat.mam <- read.delim(file="/filesToStack10072/stackedFiles/mam_pertrapnight.csv", sep=",")
 head(dat.mam)
 
-### 
+
+### Rmove some records from the dataset
+### Remove species that are bycatch (non-target), dead, or escaped while processing
+### remove all where the fate of the individual, unless marked and released, is
+### 'dead' = dead, 'escaped' = escaped while handling, 'nontarget' = released, non-target species, 
+### should 'released' (= target or opportunistic species released without full processing) be also removed?
+dat.mam <- filter(dat.mam, fate != "dead")
+dat.mam <- filter(dat.mam, fate != "escaped")
+dat.mam <- filter(dat.mam, fate != "nontarget")
+#dat.mam <- filter(dat.mam, fate != "released") 
+
+### Remove records no id'ed to species
+### there are a couple of species that are not id'ed to species and yet denoted as "/" (either or)
+### let's remove those first
+spnames.sep <- spnames  %>%
+  separate(col=spnames, into = c("sciname", "potsp"), sep="/", remove = FALSE) %>%
+  distinct()
+spnames.sep <- spnames.sep %>%
+  filter(is.na(potsp) == TRUE)
+
+### let's remove those denoted as sp.
+spnames.sep <- spnames.sep  %>%
+  separate(col=sciname, into = c("genus", "species", "subspecies"), sep=" ", remove = FALSE) %>%
+  select(spnames,genus,species,subspecies)
+
+spnames.sep <- spnames.sep %>%
+  filter(species != "sp.")
+
+dat.mam <- dat.mam %>%
+  filter(scientificName %in% spnames.sep$spnames)
+
+
+### Create separate columns of day, month, and year of capture
 t1 <- t(as.data.frame(str_split(dat.mam$collectDate, "-")))
 dat.mam$year <- as.numeric(t1[,1])
 dat.mam$month <- as.numeric(t1[,2])
@@ -67,8 +99,8 @@ sts <- unique(b1$siteID)
 dat.mam.c1 <- dat.mam.c1 %>%
   unite("bout_rep", bout:rep, remove=FALSE)
 
-saveRDS(dat.mam.c1, file="/Users/jarzyna.1/Documents/RESEARCH_NEON/Data/filesToStack10072/stackedFiles/mam_pertrapnight_collectDate_Bouts_C1.rds")
-dat.mam.c1 <- readRDS(file="/Users/jarzyna.1/Documents/RESEARCH_NEON/Data/filesToStack10072/stackedFiles/mam_pertrapnight_collectDate_Bouts_C1.rds")
+saveRDS(dat.mam.c1, file="mam_pertrapnight_collectDate_Bouts_C1.rds")
+dat.mam.c1 <- readRDS(file="mam_pertrapnight_collectDate_Bouts_C1.rds")
 
 ### Organize the data to call on later
 datorg <- dat.mam.c1 %>%
