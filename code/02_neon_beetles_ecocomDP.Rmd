@@ -25,10 +25,10 @@ All individuals of the same species collected at the same time/same location are
 *package_id
 ```{r}
 observation <- beetles_counts %>%
-  #get sampleID (which is really the event_id) from an original table
-  left_join(beetles_raw$bet_fielddata %>% select(sampleID, plotID, trapID, collectDate) %>% distinct()) %>%
   unite(location_id, plotID, trapID) %>%
-  mutate(variable_name = "abundance", unit = "count") %>%
+  rename(abundance = count) %>%
+  pivot_longer(c(abundance, trappingDays), names_to = "variable_name", values_to = "value") %>%
+  mutate(unit = "count") %>%
   #create observation_id column
   group_by(sampleID) %>%
   mutate(observation_id = paste(sampleID, row_number(), sep = ".")) %>%
@@ -38,7 +38,7 @@ observation <- beetles_counts %>%
          observation_datetime = collectDate, 
          taxon_id = taxonID, 
          variable_name, 
-         value = count, 
+         value,
          unit)
 ```
 
