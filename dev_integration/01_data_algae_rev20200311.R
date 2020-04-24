@@ -13,6 +13,7 @@
 #                              check.size = TRUE)
 
 library(neonUtilities)
+library(tidyverse)
 
 
 # Try this:
@@ -29,21 +30,11 @@ alg_field_data <- alg_allTabs$alg_fieldData
 alg_tax_long <- alg_allTabs$alg_taxonomyProcessed
 alg_biomass <-alg_allTabs$alg_biomass
 
-alg_biomass1t <- alg_biomass %>%
-  mutate(estBSVolume = preservativeVolume + labSampleVolume) %>%
-  filter(analysisType == 'taxonomy') # filter to taxonomy type
-
-alg_tax_long$perBottleSampleVolume[is.na(alg_tax_long$perBottleSampleVolume)] <- 0
-# not sure whether the above line is a good idea
-
-alg_tax_biomass2 <- left_join(alg_tax_long, alg_biomass1t) %>%
-  mutate(perBSVol=
-           case_when(
-             perBottleSampleVolume == 0 ~ estBSVolume,
-             perBottleSampleVolume > 0 ~ perBottleSampleVolume))
 
 ## create table_observation
-table_observation1 <- left_join(alg_tax_biomass2, alg_field_data) %>%
+table_observation <- alg_tax_long %>%
+  left_join(alg_biomass) %>% 
+  left_join(alg_field_data) %>%
   select(
     uid,
     sampleID,
@@ -52,7 +43,7 @@ table_observation1 <- left_join(alg_tax_biomass2, alg_field_data) %>%
     algalParameterValue,
     algalParameterUnit,
     algalParameter,
-    perBSVol,
+    perBottleSampleVolume,
     fieldSampleVolume,
     algalSampleType,
     benthicArea,
@@ -62,8 +53,8 @@ table_observation1 <- left_join(alg_tax_biomass2, alg_field_data) %>%
   filter(algalParameterUnit == 'cellsPerBottle') %>% # filter to cells per bottle
   mutate(
     density = case_when(
-        algalSampleType %in% c('seston') ~ algalParameterValue / perBSVol,
-        TRUE ~ (algalParameterValue / perBSVol) * (fieldSampleVolume / benthicArea) #add phytoplankton back in when applicable
+        algalSampleType %in% c('seston') ~ algalParameterValue / perBottleSampleVolume,
+        TRUE ~ (algalParameterValue / perBottleSampleVolume) * (fieldSampleVolume / benthicArea) #add phytoplankton back in when applicable
       ),
     cell_density_standardized_unit = case_when(
       algalSampleType == 'phytoplankton' ~ 'cells/mL',
