@@ -531,8 +531,9 @@ tck_merged_final %>% pivot_longer(cols = all_of(taxon.cols), names_to = "Species
 
 
 # add in taxonomic resolution
-table(tck_taxonomyProcessed$acceptedTaxonID, tck_taxonomyProcessed$taxonRank) # accepted TaxonID is either at family, order, or species level
-tck_taxonomyProcessed %>% group_by(acceptedTaxonID) %>% summarise(taxonRank =  first(taxonRank)) -> tax_rank
+table(tck_taxonomyProcessed$acceptedTaxonID, tck_taxonomyProcessed$taxonRank)# accepted TaxonID is either at family, order, or species level
+table(tck_taxonomyProcessed$acceptedTaxonID, tck_taxonomyProcessed$scientificName)
+tck_taxonomyProcessed %>% group_by(acceptedTaxonID) %>% summarise(taxonRank =  first(taxonRank), scientificName= first(scientificName)) -> tax_rank
 
 tck_merged_final %>% left_join(tax_rank, by = "acceptedTaxonID") -> tck_merged_final
 
