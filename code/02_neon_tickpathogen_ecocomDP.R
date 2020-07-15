@@ -69,7 +69,7 @@ location <- location_collapsed %>% select(one_of(req_col_location))
 
 #### Location Ancillary table ####
 
-location_ancillary <- location_collapsed %>% select(location_id, latlongUncertainty, elevationUncertainty, domainID, siteID, nlcdClass) %>%
+location_ancillary <- location_collapsed %>% select(location_id, latlongUncertainty, elevationUncertainty, domainID, siteID, nlcdClass, geodeticDatum) %>%
   mutate(latlongUncertainty=as.character(latlongUncertainty), elevationUncertainty=as.character(elevationUncertainty)) %>%
   pivot_longer(cols=c(latlongUncertainty, elevationUncertainty, domainID, siteID, nlcdClass), names_to = "variable_name", values_to="value") %>%
   mutate(location_ancillary_id=paste0("loan",row_number())) %>% 
@@ -90,7 +90,6 @@ taxon_collapsed <- distinct(taxon_raw) %>% mutate(taxon_id=paste0("tax",row_numb
 taxon <- taxon_collapsed %>% select(one_of(req_col_taxon))
 
 ## Should I include taxon ancillary with which hosts each tends to infect?
-
 
 write.csv(observation, file="data/observation_tickpathogen.csv", row.names = FALSE, quote=FALSE)
 write.csv(observation_ancillary, file="data/observation_ancillary_tickpathogen.csv", row.names = FALSE, quote=FALSE)
