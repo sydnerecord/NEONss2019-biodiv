@@ -233,8 +233,8 @@ fsh_dat_wide_total.obs <- fsh_aggregate_mod %>%
 # make wide for catch per unit efforts
 fsh_dat_wide_CUPE <- fsh_aggregate_mod2 %>% 
   dplyr::group_by(year, month, siteID, namedLocation, reachID, fixedRandomReach, aquaticSiteType, samplerType) %>%
-  tidyr::pivot_wider(names_from = scientificName, values_from = CUPE, names_repair = "unique",  values_fill = 0, names_sep = NULL) 
-
+  tidyr::pivot_wider(names_from = scientificName, values_from = CUPE, names_repair = "unique",  values_fill = 0, names_sep = NULL) %>%
+dplyr::select(-n_obs, -number_of_fish) # these cols are misleading for wide format
 
 ## writing the data into csv and txt formats
 
