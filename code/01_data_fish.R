@@ -69,6 +69,7 @@ library(jsonlite)
 library(dplyr, quietly=T)
 library(downloader)
 library(magrittr)
+library(readr)
 
 # update, without prompts for permission/clarification
 update.packages(ask = FALSE)
@@ -77,17 +78,14 @@ update.packages(ask = FALSE)
 # fish dpid
 my_dpid_fish <- 'DP1.20107.001'
 
-# some aquatic sites-- for this need all sites
-#my_site_list <- c('POSE', 'ARIK')
-
 # get taxon table from API, may take a few minutes to load
 # Fish electrofishing, gill netting, and fyke netting counts 
 # http://data.neonscience.org/data-product-view?dpCode=DP1.20107.001
 full_taxon_fish <- neonUtilities::getTaxonTable(taxonType = 'FISH', recordReturnLimit = NA, stream = "true") 
 
 # -- make ordered taxon_rank list for a reference (subspecies is smallest rank, kingdom is largest)
-
-# a much simple table with useful levels of taxonomic resolution
+# a much simple table with useful levels of taxonomic resolution; 
+# this might not be needed if taxon rank is extracted  from scientific names using stringr functions 
 taxon_rank_fish <- c('superclass', 'class', 'subclass', 'infraclass', 'superorder',
                      'order', 'suborder', 'infraorder', 'section', 'subsection',
                      'superfamily', 'family', 'subfamily', 'tribe', 'subtribe', 'genus',
@@ -101,19 +99,17 @@ all_fish <- neonUtilities::loadByProduct(dpID = my_dpid_fish,  site = "all", sta
 # The object returned by loadByProduct() is a named list of data frames. 
 #To work with each of them, select them from the list using the $ operator.
 
-# tibble::view() # to view tables in a seperate window
-
 # join field data table with the pass tables from all_fish
-
-
-fsh_dat1 <- dplyr::left_join(x = all_fish$fsh_perPass, y = all_fish$fsh_fieldData, by = c('reachID')) %>% 
- dplyr::filter(is.na(samplingImpractical) | samplingImpractical == "") #remove records where fish couldn't be collected, both na's and blank data
+# this joins reach-level data, you can just join by any two of these, and the results are the same, dropping the unique ID
+fsh_dat1 <- dplyr::left_join(x = all_fish$fsh_perPass[-1], y = all_fish$fsh_fieldData[-1], by = c("reachID")) %>% 
+ dplyr::filter(is.na(samplingImpractical) | samplingImpractical == "") #remove records where fish couldn't be collected, both na's and blank data is kept
 
 # get rid of dupe col names and .x suffix
 fsh_dat1 <- fsh_dat1[,!grepl('\\.y',names(fsh_dat1))]
 names(fsh_dat1) <- gsub('\\.x','',names(fsh_dat1))
 
-# add individual fish counts
+# add individual fish counts; perFish data = individual level per each specimen captured
+# this joins reach-level field data with individual fish measures
 fsh_dat_indiv <- dplyr::left_join(all_fish$fsh_perFish, fsh_dat1, by = "eventID") 
 
 # get rid of dupe col names and .x suffix
@@ -125,7 +121,8 @@ fsh_dat_indiv$reachID <- ifelse(is.na(fsh_dat_indiv$reachID),
                                 substr(fsh_dat_indiv$eventID, 1, 16), fsh_dat_indiv$reachID) 
 
 
-# add bulk fish counts
+# add bulk fish counts; bulk count data = The number of fish counted during bulk processing in each pass
+# this will join all the reach-level field data with the species data with bulk counts
 fsh_dat_bulk <- dplyr::left_join(all_fish$fsh_bulkCount, fsh_dat1, by = "eventID")
 
 # get rid of dupe col names and .x suffix
@@ -141,9 +138,12 @@ fsh_dat_bulk$reachID <- ifelse(is.na(fsh_dat_bulk$reachID),
 fsh_dat <-dplyr::bind_rows(fsh_dat_indiv, fsh_dat_bulk)
 
 # add count = 1 for indiv data
+# before row_bind, the indiv dataset did not have a col for count
+# after bind, the bulk count col has "NAs" need to add "1", since indiv col has individual fish per row
 fsh_dat$count <- ifelse(is.na(fsh_dat$bulkFishCount), 1, fsh_dat$bulkFishCount)
 
-# need to coovert POSIXt format into as.character and then bacl to date-time format
+# need to convert POSIXct format into as.character and then back to date-time format
+# then, fill in missing site ID info and missing startDate into
 fsh_dat$startDate <- dplyr::if_else(is.na(fsh_dat$startDate),
                   lubridate::as_datetime(substr(as.character(fsh_dat$passStartTime), 1, 10)), fsh_dat$startDate) # 1-10: number of characters on date
 fsh_dat$siteID <- dplyr::if_else(is.na(fsh_dat$siteID), 
@@ -155,7 +155,18 @@ fsh_dat$taxonRank_ordered <- factor(
   levels = taxon_rank_fish,
   ordered = TRUE) 
 
-# get all records that have rank <= species
+# in case the bulkCount data set does not have a column on taxonRank, as such, need to add it here.
+# in scientificName column-- species identified below species level (genus, family, order, phylum)-- appear as sp. or spp.
+# both sp. and spp. identifications should be marked low-res identifications, aka above species level in ranking  
+# and exclude from this analyses
+fsh_dat <- fsh_dat %>% 
+  dplyr::mutate(taxonRank = dplyr::case_when(stringr::str_detect(string = scientificName, pattern = " spp.$") ~ "not_sp_level1", 
+    stringr::str_detect(string = scientificName, pattern = " sp.$") ~ "not_sp_level2", TRUE ~ "species")) 
+
+# get all records that have rank <= species; if bulkCount data set has taxonRank, skip this
+fsh_dat_fine <- fsh_dat2 %>% dplyr::filter(taxonRank == "species")
+
+# if bulkCount data set has taxonRank, use this this might be added now. 
 fsh_dat_fine <- fsh_dat %>%
   dplyr::filter(taxonRank_ordered <= 'species')
 
@@ -169,11 +180,9 @@ my_grouping_vars <- c('domainID','siteID','aquaticSiteType','namedLocation',
 
 # aggregate densities for each species group, pull out year and month from StartDate
 
-require(dplyr)
-
 fsh_dat_aggregate <- fsh_dat_fine %>%
-  dplyr::select(!!c(my_grouping_vars, 'count')) %>%
-  dplyr::group_by_at(dplyr::vars(my_grouping_vars)) %>%  
+ dplyr::select(!!c(all_of(my_grouping_vars), 'count')) %>%
+  dplyr::group_by_at(dplyr::vars(all_of(my_grouping_vars))) %>%  
   dplyr::summarize(
     number_of_fish = sum(count),
     n_obs = dplyr::n()) %>%
@@ -219,12 +228,12 @@ fsh_aggregate_mod2 <- fsh_aggregate_mod %>% dplyr::mutate(CUPE = dplyr::if_else(
 # make wide for total observations without catch per unit efforts
 fsh_dat_wide_total.obs <- fsh_aggregate_mod %>% 
   dplyr::group_by(year, month, siteID, namedLocation, reachID, fixedRandomReach, aquaticSiteType, samplerType) %>%
-  tidyr::spread(key = scientificName, value = number_of_fish, fill = 0, convert = FALSE, drop = TRUE, sep = NULL) 
+  tidyr::pivot_wider(names_from = scientificName, values_from = number_of_fish, names_repair = "unique",  values_fill = 0, names_sep = NULL) 
 
 # make wide for catch per unit efforts
 fsh_dat_wide_CUPE <- fsh_aggregate_mod2 %>% 
   dplyr::group_by(year, month, siteID, namedLocation, reachID, fixedRandomReach, aquaticSiteType, samplerType) %>%
-  tidyr::spread(key = scientificName, value = CUPE, fill = 0, convert = FALSE, drop = TRUE, sep = NULL) 
+  tidyr::pivot_wider(names_from = scientificName, values_from = CUPE, names_repair = "unique",  values_fill = 0, names_sep = NULL) 
 
 
 ## writing the data into csv and txt formats
