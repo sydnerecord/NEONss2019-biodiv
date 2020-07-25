@@ -222,7 +222,7 @@ fsh_aggregate_mod <- fsh_dat_aggregate %>% dplyr::mutate(netSetTime = dplyr::if_
 # CUPE with gill nets and fykenets calculated by = (total number of fish/netDeployment time in hours * 24) as fish captured per 1-day-mong net deployment of e-fishing
 fsh_aggregate_mod2 <- fsh_aggregate_mod %>% dplyr::mutate(CUPE = dplyr::if_else(condition = samplerType ==  "electrofisher" | samplerType == "two electrofishers",
                             true = number_of_fish/mean_efishtime * 3600, 
-                            false = dplyr::if_else(condition = samplerType ==  "mini-fyke net" | samplerType == "mini-fyke net",
+                            false = dplyr::if_else(condition = samplerType ==  "mini-fyke net" | samplerType == "gill net",
                             true = number_of_fish/netDeploymentTime * 24, false = as.numeric(NA))))
 
 # make wide for total observations without catch per unit efforts
