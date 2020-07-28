@@ -236,6 +236,8 @@ fsh_dat_wide_CUPE <- fsh_aggregate_mod2 %>%
   tidyr::pivot_wider(names_from = scientificName, values_from = CUPE, names_repair = "unique",  values_fill = 0) %>%
 dplyr::select(-n_obs, -number_of_fish) # these cols are misleading for wide format
 
+
+
 ## writing the data into csv and txt formats
 
 install.packages("readr")
