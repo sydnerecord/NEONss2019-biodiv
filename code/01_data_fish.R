@@ -1,0 +1,282 @@
+
+#Clear all existing data
+rm(list=ls())
+
+#Close graphics devices
+graphics.off()
+
+# sk R to return memory to the operating system, might free up memory
+gc()
+
+# set options
+options(stringsAsFactors = FALSE)
+
+## getting all required packages
+library(installr)
+library(neonUtilities)
+library(tidyverse)
+library(googledrive)
+library(devtools)
+library(ecocommDP)
+library(lubridate)
+library(iNEXT)
+library(xlsx)
+library(geoNEON)
+library(pkgbuild)
+library(rhdf5)
+library(httr)
+library(jsonlite)
+library(dplyr, quietly=T)
+library(downloader)
+library(magrittr)
+library(sjmisc)
+library(dbplyr)
+library(DescTools)
+library(data.table)
+library(readr)
+
+# update, without prompts for permission/clarification
+update.packages(ask = FALSE)
+
+# fish dpid
+my_dpid_fish <- 'DP1.20107.001'
+
+# get taxon table from API, may take a few minutes to load
+# Fish electrofishing, gill netting, and fyke netting counts 
+# http://data.neonscience.org/data-product-view?dpCode=DP1.20107.001
+full_taxon_fish <- neonUtilities::getTaxonTable(taxonType = 'FISH', recordReturnLimit = NA, stream = "true") 
+
+# -- make ordered taxon_rank list for a reference (subspecies is smallest rank, kingdom is largest)
+# a much simple table with useful levels of taxonomic resolution; 
+# this might not be needed if taxon rank is extracted  from scientific names using stringr functions 
+taxon_rank_fish <- c('superclass', 'class', 'subclass', 'infraclass', 'superorder',
+                     'order', 'suborder', 'infraorder', 'section', 'subsection',
+                     'superfamily', 'family', 'subfamily', 'tribe', 'subtribe', 'genus',
+                     'subgenus','speciesGroup','species','subspecies') %>% rev() # get the reversed version
+
+
+# get data FISH via api -- will take a while --  package = "basic" is also possible 
+all_fish <- neonUtilities::loadByProduct(dpID = my_dpid_fish,  site = "all", startdate = NA, enddate = NA,
+                                         package = "expanded", avg = "all", check.size = FALSE)
+
+save(all_fish, file = "all_fish.RData" )
+fsh_perFish = all_fish$fsh_perFish
+save(fsh_perFish, file = "perFsh.RData")
+load(file = "all_fish.RData")
+
+# save each file into the dir
+all_fish$variables_20107 %>%  write.xlsx(file = "fsh2020.xlsx", sheetName = "var")
+all_fish$fsh_bulkCount %>%  write.xlsx(file = "fsh2020.xlsx", sheetName = "fsh_bulkCount", append = T)
+all_fish$fsh_fieldData %>%  write.xlsx(file = "fsh2020.xlsx", sheetName = "fsh_fieldData", append = T)
+all_fish$fsh_perFish %>%  write.csv(file = "fshperFish.csv")
+all_fish$fsh_perPass %>%  write.xlsx(file = "fsh2020.xlsx", sheetName = "fsh_perPass", append = T)
+all_fish$fsh_morphospecies %>% write.xlsx(file = "fsh2020.xlsx", sheetName = "fsh_morph", append = T)
+all_fish$categoricalCodes_20107 %>%  write.xlsx(file = "fsh2020.xlsx", sheetName = "fsh_calcodes", append = T)
+all_fish$readme_20107 %>%  write.xlsx(file = "fsh2020.xlsx", sheetName = "fsh_readme", append = T)
+
+utils::view(all_fish$fsh_perPass)
+utils::View(all_fish$fsh_bulkCount)
+utils::View(all_fish$fsh_perFish)
+
+# this joins reach-level data, you can just join by any two of these, and the results are the same, dropping the unique ID
+fsh_dat1 <- dplyr::left_join(x = all_fish$fsh_perPass[-1], y = all_fish$fsh_fieldData[-1], by = c("reachID")) %>% 
+  dplyr::filter(is.na(samplingImpractical) | samplingImpractical == "") #remove records where fish couldn't be collected, both na's and blank data is kept
+
+utils::View(fsh_dat1)
+tibble::view(fsh_dat1)
+
+# get rid of duplicate col names and .x suffix
+fsh_dat1 <- fsh_dat1[,!grepl('\\.y',names(fsh_dat1))]
+names(fsh_dat1) <- gsub('\\.x','',names(fsh_dat1))
+
+save(fsh_dat1, file = "fsh_dat1.RData") # reach-level field data
+utils::View(fsh_dat1)
+tibble::view(fsh_dat1)
+
+# add individual fish counts; perFish data = individual level per each specimen captured
+# this joins reach-level field data with individual fish measures
+fsh_dat_indiv <- dplyr::left_join(all_fish$fsh_perFish, fsh_dat1, by = c("eventID")) 
+
+# get rid of dupe col names and .x suffix
+fsh_dat_indiv <- fsh_dat_indiv[,!grepl('\\.y',names(fsh_dat_indiv))]
+names(fsh_dat_indiv) <- gsub('\\.x','',names(fsh_dat_indiv))
+
+tibble::view(fsh_dat_indiv)
+
+# fill in missing reachID with event ID
+fsh_dat_indiv$reachID <- ifelse(is.na(fsh_dat_indiv$reachID), 
+                                substr(fsh_dat_indiv$eventID, 1, 16), fsh_dat_indiv$reachID) 
+
+save(fsh_dat_indiv, file = "fsh_dat_indiv.RData")
+utils::View(fsh_dat_indiv)
+tibble::view(fsh_dat_indiv)
+
+# add bulk fish counts; bulk count data = The number of fish counted during bulk processing in each pass
+# this will join all the reach-level field data with the species data with bulk counts
+# fsh_dat_bulk <- dplyr::left_join(all_fish$fsh_bulkCount, fsh_dat1, by = c("eventID", "domainID", "siteID", "namedLocation"))
+
+fsh_dat_bulk <- dplyr::left_join(all_fish$fsh_bulkCount, fsh_dat1, by = c("eventID"))
+
+# get rid of dupe col names and .x suffix
+fsh_dat_bulk <- fsh_dat_bulk[,!grepl('\\.y',names(fsh_dat_bulk))]
+names(fsh_dat_bulk) <- gsub('\\.x','',names(fsh_dat_bulk))
+
+#fill in missing reachID
+fsh_dat_bulk$reachID <- ifelse(is.na(fsh_dat_bulk$reachID), 
+                               substr(fsh_dat_bulk$eventID, 1, 16), fsh_dat_bulk$reachID) 
+
+save(fsh_dat_bulk, file = "fsh_dat_bulk.RData")
+tibble::view(fsh_dat_bulk)
+
+# combine indiv and bulk counts
+fsh_dat <-dplyr::bind_rows(fsh_dat_indiv, fsh_dat_bulk)
+
+# add count = 1 for indiv data
+# before row_bind, the indiv dataset did not have a col for count
+# after bind, the bulk count col has "NAs" need to add "1", since indiv col has individual fish per row
+fsh_dat$count <- ifelse(is.na(fsh_dat$bulkFishCount), 1, fsh_dat$bulkFishCount)
+
+# need to convert POSIXct format into as.character and then back to date-time format
+# then, fill in missing site ID info and missing startDate into
+fsh_dat$startDate <- dplyr::if_else(is.na(fsh_dat$startDate),
+                                    lubridate::as_datetime(substr(as.character(fsh_dat$passStartTime), 1, 10)), fsh_dat$startDate) # 1-10: number of characters on date
+fsh_dat$siteID <- dplyr::if_else(is.na(fsh_dat$siteID), 
+                                 substr(fsh_dat$eventID, 1, 4), fsh_dat$siteID) # four characters on site
+
+save(fsh_dat, file = "fsh_dat.RData")
+
+# get species and finer res, may not need this if wildcards are used with scientific names col
+# fsh_dat$taxonRank_ordered <- factor(
+#   fsh_dat$taxonRank,
+#   levels = taxon_rank_fish,
+#   ordered = TRUE) 
+
+#############################################################################################
+
+# in case the bulk count data set does not have a column on taxonomic rank, as such, need to add it here.
+# in scientificName column-- species identified below species level (genus, family, order, phylum)-- appear as sp. or spp.
+# both sp. and spp. identifications should be marked low-res identifications, aka above species level in ranking  
+# and exclude from this analyses
+fsh_dat2 <- fsh_dat %>% 
+  dplyr::mutate(taxonRank = dplyr::case_when(stringr::str_detect(string = scientificName, pattern = " spp.$") ~ "not_sp_level1", 
+    stringr::str_detect(string = scientificName, pattern = " sp.$") ~ "not_sp_level2", TRUE ~ "species")) 
+
+save(fsh_dat2, file = "fsh_dat2.RData")
+
+# get all records that have rank <= species; if bulkCount data set has taxonRank, skip this
+fsh_dat_fine <- fsh_dat2 %>% dplyr::filter(taxonRank == "species")
+
+# if bulkCount data set has taxonRank, use this this might be added now. 
+fsh_dat_fine <- fsh_dat %>%
+  dplyr::filter(taxonRank_ordered <= 'species')
+
+save(fsh_dat_fine, file = "fsh_dat_fine.RData")
+load(file = "fsh_dat_fine.RData")
+
+write.csv(fsh_dat2, file = "fsh_dat_tax_ranked.csv")
+write.csv(fsh_dat_fine, file = "fsh_dat_fine.csv")
+
+
+# grouping vars for aggregating density measurements 
+my_grouping_vars <- c('domainID','siteID','aquaticSiteType','namedLocation',
+                      'startDate', 'endDate', 'reachID','eventID','samplerType', 'aquaticSiteType', 'netSetTime', 'netEndTime',
+                      'netDeploymentTime', 'netLength', 'netDepth', 'fixedRandomReach','measuredReachLength','efTime', 
+                      'efTime2', "passStartTime", "passEndTime", 'netDeploymentTime', 'scientificName', 'passNumber') 
+# added a few metrics to quantify catch per unit effort such as 'passNumber', efish time, net deployment time 
+
+# aggregate densities for each species group, pull out year and month from StartDate
+
+require(dplyr)
+
+fsh_dat_aggregate <- fsh_dat_fine %>%
+  dplyr::select(!!c(all_of(my_grouping_vars), 'count')) %>%
+  dplyr::group_by_at(dplyr::vars(all_of(my_grouping_vars))) %>%  
+  dplyr::summarize(
+    number_of_fish = sum(count),
+    n_obs = dplyr::n()) %>%
+  dplyr::mutate(
+    year = startDate %>% lubridate::year(),
+    month = startDate %>% lubridate::month()
+  ) %>% dplyr::ungroup()
+
+
+# some aquaticSiteType are NA, replace NAs if-based wildcarding namedLOcation 
+# grepl is for wildcarding 
+fsh_dat_aggregate$aquaticSiteType <- dplyr::if_else(is.na(fsh_dat_aggregate$aquaticSiteType),
+                                                    if_else(grepl("fish.point", fsh_dat_aggregate$namedLocation), 'stream','lake'), fsh_dat_aggregate$aquaticSiteType)
+
+# sampler type is also missing in a few cases, reaplace from eventID, with a wildcard
+fsh_dat_aggregate$samplerType <- dplyr::if_else(is.na(fsh_dat_aggregate$samplerType), 
+                                                dplyr::if_else(grepl("e-fisher", fsh_dat_aggregate$eventID), 'electrofisher', 
+                                                               dplyr::if_else(grepl("gill", fsh_dat_aggregate$eventID), 'gill net', 'mini-fyke net')), fsh_dat_aggregate$samplerType) 
+
+
+# make sure that e-fish samples have "" or NA for netset and netend times, this will leave actual missing data as na
+# change netset/netend times to a datetime format if needed: lubridate::as_datetime(fsh_xx$netSetTime, format="%Y-%m-%d T %H:%M", tz="GMT")
+## then calculate the netdeploymenttime (in hours) from netset and netend time
+# to calculate pass duration (in mins) and also calculate average efish time (secs); also if efishtime is zero, --> na's 
+
+fsh_aggregate_mod <- fsh_dat_aggregate %>% dplyr::mutate(netSetTime = dplyr::if_else(condition = samplerType ==  "electrofisher" | samplerType == "two electrofishers",
+                    true = lubridate::as_datetime(NA), false = netSetTime), 
+                    netEndTime = dplyr::if_else(condition = samplerType ==  "electrofisher" | samplerType == "two electrofishers",
+                    true = lubridate::as_datetime(NA), false = netEndTime),
+                    netDeploymentTime = dplyr::case_when(samplerType == grepl("electrofish", samplerType) ~ netDeploymentTime, 
+                    is.na(netDeploymentTime) ~ as.numeric(difftime(netEndTime, netSetTime, tz = "GMT", units = "hours")), 
+                    TRUE ~ netDeploymentTime),
+                    mean_efishtime = base::rowMeans(dplyr::select(., c("efTime", "efTime2")), na.rm = T),
+                    mean_efishtime = dplyr::case_when(mean_efishtime == 0 ~ NA_real_,TRUE ~ mean_efishtime))
+
+# with the above changes, we have efish time and and net duration to calculate catch per unit effort before moving to wide format
+# CPUE with efish time, calculated by = (total number of fish/average e-fish time in secs * 3600) as fish captured per 1-hr of e-fishing
+# CPUE with gill nets and fyke nets calculated by = (total number of fish/netDeployment time in hours * 24) as fish captured per 1-day-long net deployment of e-fishing
+
+fsh_aggregate_mod2 <- fsh_aggregate_mod %>% dplyr::mutate(CPUE = dplyr::if_else(condition = samplerType ==  "electrofisher" | samplerType == "two electrofishers",
+                                                                                true = number_of_fish/mean_efishtime * 3600, 
+                                                                                false = dplyr::if_else(condition = samplerType ==  "mini-fyke net" | samplerType == "gill net",
+                                                                                                       true = number_of_fish/netDeploymentTime * 24, false = as.numeric(NA))))
+
+# make wide for total observations without catch per unit efforts
+fsh_dat_wide_total.obs <- fsh_aggregate_mod %>% 
+  dplyr::group_by(year, month, siteID, namedLocation, reachID, fixedRandomReach, aquaticSiteType, samplerType) %>%
+  tidyr::spread(key = scientificName, value = number_of_fish, fill = 0, convert = FALSE, drop = TRUE, sep = NULL) %>%
+  dplyr::select(-n_obs) # this col is misleading for wide format
+
+# make wide for total observations without catch per unit efforts
+fsh_dat_wide_total.obs <- fsh_aggregate_mod %>% 
+  dplyr::group_by(year, month, siteID, namedLocation, reachID, fixedRandomReach, aquaticSiteType, samplerType) %>%
+  tidyr::pivot_wider(names_from = scientificName, values_from = number_of_fish, names_repair = "unique",  values_fill = 0, names_sep = NULL) %>%
+  dplyr::select(-n_obs, -number_of_fish)
+
+# make wide for catch per unit efforts
+fsh_dat_wide_CPUE <- fsh_aggregate_mod2 %>% 
+  dplyr::group_by(year, month, siteID, namedLocation, reachID, fixedRandomReach, aquaticSiteType, samplerType) %>%
+  tidyr::pivot_wider(names_from = scientificName, values_from = CPUE, names_repair = "unique",  values_fill = 0, names_sep = NULL) %>%
+  dplyr::select(-n_obs, -number_of_fish)
+
+
+# no CPUE, long format
+save(fsh_aggregate_mod, file = "fsh_aggregate_mod_long.RData")
+saveRDS(fsh_aggregate_mod, file = "fsh_aggregate_mod_long.rds")
+
+# with CPUE, long format
+save(fsh_aggregate_mod2, file = "fsh_aggregate_CPUE_long.RData")
+saveRDS(fsh_aggregate_mod2, file = "fsh_aggregate_CPUE_long.rds")
+
+# no CPUE, wide format
+save(fsh_dat_wide_total.obs, file = "fsh_dat_wide_totobs.RData")
+saveRDS(fsh_dat_wide_total.obs, file = "fsh_dat_wide_totobs.rds")
+
+# wide, with CPUE
+save(fsh_dat_wide_CPUE, file = "fsh_dat_wide_CPUE.RData")
+saveRDS(fsh_dat_wide_CPUE, file = "fsh_dat_wide_CPUE.rds")
+
+
+### writing the data into csv and txt formats
+
+readr::write_csv(fsh_dat_wide_CPUE, "fsh_data_wide_CPUE_22Feb2020.csv")
+
+readr::write_csv(fsh_dat_wide_total.obs, "fsh_data_wide_total_obs_22JUN2020.csv")
+
+readr::write_csv(fsh_aggregate_mod2, "fsh_data_long_CPUE_22JUNE2020.csv")
+
+
