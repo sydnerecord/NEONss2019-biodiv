@@ -139,13 +139,28 @@ if (keepLOG) {
 # Note that this does NOT follow their description from online, which says certain species were tested for certain pathogens.
 # In reality, it seems almost all individuals were tested for all pathogens (with a few exceptions)
 
+#### Minor edits to data file ####
+
+## First, we need to merge B. burgdeferi and B. burgdeferi sensu lato-- these are supposed to be one row. 
+# They should be exclusive from each other, so let's check that first.
+
+tick_path %>% filter(testPathogenName %in% c("Borrelia burgdorferi", "Borrelia burgdorferi sensu lato")) %>% 
+  select(testingID, testPathogenName) %>% nrow()
+tick_path %>% filter(testPathogenName %in% c("Borrelia burgdorferi", "Borrelia burgdorferi sensu lato")) %>% 
+  select(testingID) %>% distinct() %>% nrow()
+# Verified that testingIDs are not duplicated over B burgdorferi or B burgdorferi sensu lato. We can merge them without problem.
+
 #### Filtering ####
 tick_path_filt <- tick_path %>% filter( !(uid %in% c(remove_qa_uid_batchID$uid
                                  , removeSamples_missingvalue$uid
                                  , removeSamples_sampleCondition$uid
                                  , removeSamples_testResult$uid
                                  , removeSamples_DNAQual$uid
-                                 ,remove_testPathogenName$uid)))
+                                 ,remove_testPathogenName$uid))) %>%
+  mutate(testPathogenName = ifelse(testPathogenName == "Borrelia burgdorferi","Borrelia burgdorferi sensu lato", testPathogenName)) %>% # Changing B burgdorferi to sensu lato
+  separate(subsampleID, into=c("plotID2","date2","hostSpecies","lifeStage"), sep = "[.]", remove=FALSE) %>% # Adding a host species column
+  select(-c("plotID2","date2")) # remove extra columns
+
 # Re-formatting to species x sample
 tick_path_samplexspecies <- tick_path_filt %>% select(uid, testPathogenName, testResult) %>%
   mutate(testResult=ifelse(testResult=="Positive",1,0)) %>%
