@@ -531,8 +531,9 @@ tck_merged_final %>% pivot_longer(cols = all_of(taxon.cols), names_to = "Species
 
 
 # add in taxonomic resolution
-table(tck_taxonomyProcessed$acceptedTaxonID, tck_taxonomyProcessed$taxonRank) # accepted TaxonID is either at family, order, or species level
-tck_taxonomyProcessed %>% group_by(acceptedTaxonID) %>% summarise(taxonRank =  first(taxonRank)) -> tax_rank
+table(tck_taxonomyProcessed$acceptedTaxonID, tck_taxonomyProcessed$taxonRank)# accepted TaxonID is either at family, order, or species level
+table(tck_taxonomyProcessed$acceptedTaxonID, tck_taxonomyProcessed$scientificName)
+tck_taxonomyProcessed %>% group_by(acceptedTaxonID) %>% summarise(taxonRank =  first(taxonRank), scientificName= first(scientificName)) -> tax_rank
 
 tck_merged_final %>% left_join(tax_rank, by = "acceptedTaxonID") -> tck_merged_final
 
@@ -556,8 +557,8 @@ saveRDS(tck_merged_final, "data/tck_longform.Rdata")
 # NOTES FOR END USERS  #
 #######################################
 # be aware of higher order taxa ID -- they are individuals ASSIGNED at a higher taxonomic class, rather than the sum of lower tax. class
-# higher order taxonomic assignments could be semi-identified by looking at most likely ID (e.g. if 200 of 700 larvae are IXOSPAC, very likely that the Unidentified larvae are IXOSP)
-# unidentified coudl be changed to IXOSPP across the board 
+# higher order taxonomic assignments could be semi-identified by looking at most likely ID (e.g. if 200 of 700 larvae are IXOSPAC, very likely that the Unidentified larvae are IXOSPAC)
+# unidentified could be changed to IXOSPP across the board 
 # All combos of species-lifestage aren't in the long form (e.g. if there were never IXOAFF_Adult, it will be missing instead of 0)
 
 
