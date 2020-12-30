@@ -13,7 +13,7 @@ library(ecocomDP)
 library(neonUtilities)
 
 #################################################################################
-# beetle dpid
+# macroinvertebrate dpid
 my_dpid <- 'DP1.20120.001'
 my_site_list <- c('COMO', 'ARIK')
 
@@ -26,7 +26,7 @@ all_tabs <- neonUtilities::loadByProduct(
 # download field data for all dates for two neon sites -- much more manageable 
 inv_fielddata <- all_tabs$inv_fieldData
 
-# download beetle counts for two sites 
+# download macroinvertebrate counts for two sites 
 inv_taxonomyProcessed <- all_tabs$inv_taxonomyProcessed
 
 
